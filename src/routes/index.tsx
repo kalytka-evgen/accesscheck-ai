@@ -24,22 +24,36 @@ function Landing() {
   const navigate = useNavigate();
   const [url, setUrl] = useState("");
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  // Force dark theme on landing
   useEffect(() => {
     document.documentElement.classList.add("dark");
     return () => document.documentElement.classList.remove("dark");
   }, []);
 
-  const handleScan = (e: React.FormEvent) => {
+  const handleScan = async (e: React.FormEvent) => {
     e.preventDefault();
     const trimmed = url.trim();
     if (!trimmed) return;
-    setLoading(true);
     const normalized = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
-    setTimeout(() => {
-      navigate({ to: "/report", search: { url: normalized } });
-    }, 400);
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/scan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: normalized }),
+      });
+      if (!res.ok) throw new Error(`Scan failed (${res.status})`);
+      const data = await res.json();
+      navigate({
+        to: "/report",
+        search: { url: normalized, data: JSON.stringify(data) },
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Scan failed. Please try again.");
+      setLoading(false);
+    }
   };
 
   return (
@@ -65,42 +79,52 @@ function Landing() {
               autoComplete="url"
               spellCheck={false}
               required
+              disabled={loading}
               placeholder="your-website.com"
               value={url}
               onChange={(e) => setUrl(e.target.value)}
-              className="flex-1 h-14 px-4 rounded-md bg-[color:var(--input)] border border-border text-foreground placeholder:text-muted-foreground text-base outline-none focus:border-foreground/40 focus:ring-2 focus:ring-foreground/10 transition"
+              className="flex-1 h-14 px-4 rounded-md bg-[color:var(--input)] border border-border text-foreground placeholder:text-muted-foreground text-base outline-none focus:border-foreground/40 focus:ring-2 focus:ring-foreground/10 transition disabled:opacity-60"
             />
             <button
               type="submit"
               disabled={loading}
-              className="h-14 px-8 rounded-md bg-primary text-primary-foreground font-semibold text-base hover:opacity-90 disabled:opacity-60 transition shrink-0"
+              className="h-14 px-8 rounded-md bg-primary text-primary-foreground font-semibold text-base hover:opacity-90 disabled:opacity-60 transition shrink-0 inline-flex items-center justify-center gap-2"
             >
+              {loading && (
+                <span
+                  className="w-4 h-4 rounded-full border-2 border-primary-foreground/30 border-t-primary-foreground animate-spin"
+                  aria-hidden
+                />
+              )}
               {loading ? "Scanning…" : "Scan"}
             </button>
           </form>
 
-          <p className="mt-4 text-sm text-muted-foreground">
-            5-layer AI analysis · No signup · ~20 seconds
+          {error && (
+            <p className="mt-4 text-sm" style={{ color: "var(--risk-high)" }}>
+              {error}
+            </p>
+          )}
+
+          <p className="mt-10 text-xs text-muted-foreground leading-relaxed">
+            Trusted by EU businesses · 5-layer AI (axe-core + GPT-4o) · ~80% WCAG coverage ·
+            Results in 20 seconds · No signup required
           </p>
 
-          <div className="mt-16 pt-8 border-t border-border">
-            <p className="text-xs text-muted-foreground leading-relaxed">
-              5-layer AI · ~80% WCAG coverage · Built on axe-core + GPT-4o
-            </p>
-            <div className="mt-4 flex flex-wrap gap-2">
-              {["WCAG 2.2", "EAA 2019/882", "EN 301 549"].map((b) => (
-                <span
-                  key={b}
-                  className="text-[11px] font-mono uppercase tracking-wider px-2.5 py-1 rounded border border-border text-muted-foreground"
-                >
-                  {b}
-                </span>
-              ))}
-            </div>
-            <p className="mt-6 text-xs text-muted-foreground/70">
-              Automated tool · Not legal certification.
-            </p>
+          <div className="mt-6 flex flex-wrap gap-2">
+            {["WCAG 2.2", "EAA 2019/882", "EN 301 549"].map((b) => (
+              <span
+                key={b}
+                className="text-[11px] font-mono uppercase tracking-wider px-2.5 py-1 rounded border border-border text-muted-foreground"
+              >
+                {b}
+              </span>
+            ))}
           </div>
+
+          <p className="mt-10 pt-6 border-t border-border text-xs text-muted-foreground/70">
+            Automated tool · Not legal certification.
+          </p>
         </div>
       </div>
     </main>
